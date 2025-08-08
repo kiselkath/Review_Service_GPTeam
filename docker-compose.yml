@@ -1,16 +1,67 @@
-version: "3.8"
+version: '3.8'
 
 services:
-  <service-name>:
-    build: .
-    container_name: <service-name>
+  # === AUTH SERVICE ===
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+    container_name: auth-service
     ports:
-      - "${PORT}:${PORT}"
-    env_file:
-      - .env
+      - "9080:9080"
+    environment:
+      SERVER_PORT: 9080
+      SPRING_DATASOURCE_URL: jdbc:postgresql://auth_db:5432/authdb
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: 1234
+    depends_on:
+      - auth_db
     networks:
-      - zalando-backend
+      - micro-net
+
+  auth_db:
+    image: postgres:15
+    container_name: auth_db
+    environment:
+      POSTGRES_DB: authdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 1234
+    ports:
+      - "5433:5432"
+    networks:
+      - micro-net
+
+  # === REVIEW SERVICE ===
+  review-service:
+    build:
+      context: ./review-service
+      dockerfile: Dockerfile
+    container_name: review-service
+    ports:
+      - "8591:8591"
+    environment:
+      SERVER_PORT: 8591
+      SPRING_DATA_MONGODB_URI: mongodb://review-mongo:27017/reviewdb
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://auth-service:9080/oauth2/jwks
+    depends_on:
+      - review-mongo
+      - auth-service
+    networks:
+      - micro-net
+
+  review-mongo:
+    image: mongo:6.0
+    container_name: review-mongo
+    ports:
+      - "27018:27017"
+    volumes:
+      - review_mongo_data:/data/db
+    networks:
+      - micro-net
 
 networks:
-  zalando-backend:
+  micro-net:
     external: true
+
+volumes:
+  review_mongo_data:
